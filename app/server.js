@@ -9,17 +9,20 @@ const { appRouter } = require("./routes/router");
 const { mainRouter } = require("./routes/mainRoute/main_route.router");
 const { ioMainHandler } = require("./socket");
 
+const {connectToRedis}=require('./redis/redis_cache_service')
 class Application {
   #app = express();
   #PORT;
   #DB_URL;
   #server;
   #io;
+  #redis_client
   constructor(PORT, DB_URL) {
     this.#PORT = PORT;
     this.#DB_URL = DB_URL;
     this.configureApplication();
     this.connectToDB();
+    this.connectToRDB()
     this.createServer();
     this.createIO();
     this.createRoute();
@@ -52,7 +55,7 @@ class Application {
       process.exit(1);
     });
     // listen on connection and print connected message
-    mongoose.connection.on("connected", (data) => {
+    mongoose.connection.on("connected", () => {
       console.log("connected to DB");
     });
     // on SIGINT signal exist
@@ -81,6 +84,9 @@ class Application {
         message,
       });
     });
+  }
+  connectToRDB(){
+    connectToRedis()
   }
   createRoute() {
     this.#app.use("/api/v1", appRouter);
