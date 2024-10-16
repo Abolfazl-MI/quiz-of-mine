@@ -5,7 +5,7 @@ class AuthController {
   async signup(req, res, next) {
     try {
       let { email, password,userName } = req.body;
-        console.log(userName)
+        // console.log(userName)
       // try to search db if there is existing user with email
       let user = await UserModel.findOne({ $or:[
         {email},
@@ -23,7 +23,7 @@ class AuthController {
       // firstly woul would hash user provided password
       let hashed_password = await bcrypt.hash(password, 12);
       let updatedUserName=userName.replaceAll(' ','_')
-      console.log(updatedUserName)
+      // console.log(updatedUserName)
       let newUser=await UserModel.create({
         email,
         password:hashed_password,

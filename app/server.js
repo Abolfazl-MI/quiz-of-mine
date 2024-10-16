@@ -42,7 +42,7 @@ class Application {
   }
   configureApplication() {
     let stat_path = path.join(__dirname, "..", "public");
-    console.log(stat_path);
+    // console.log(stat_path);
     this.#app.use(express.static(stat_path));
     this.#app.use(morgan("dev"));
     this.#app.use(express.json());

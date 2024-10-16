@@ -3,7 +3,7 @@ const UserModel = require("../models/user_model");
 require('dotenv').config()
 
 function authMiddleware(req, res, next) {
-    console.log('request ')
+    // console.log('request ')
     // get authorization headers
     let header = req.headers.Authorization|| req.headers.authorization
     // if not header exists or not start with Bearer or bearer

@@ -1,117 +1,107 @@
 const redis = require("redis");
 
 let redis_client;
-function connectToRedis() {
-  console.log("runnig redis");
-  redis_client = redis.createClient(6379, "127.0.0.1");
-  redis_client.connect();
-  redis_client.on("error", (err) => {
-    console.log("encountered error while connecting redis");
-    console.error(err);
-    process.exit(1);
-  });
-  redis_client.on("connect", () => {
-    console.log("connected to redis");
-  });
-}
-async function addPlayerToQueue(email, level, socketId) {
-  console.log(socketId)
-  const playerKey = `player:${email}`;
-  const isPlayerInQueue = await redis_client.zScore(
-    `matchmaking:level:${level}`,
-    playerKey
-  );
-  if (isPlayerInQueue !== null) {
-    console.log("player" + email + "is already in queue");
-    return;
-  }
-  // Add player to the sorted set for their level
-  await redis_client.zAdd(
-    `matchmaking:level:${level}`,
-    {
-      score: level,
-      value: playerKey,
-    },
 
-    (err, result) => {
-      if (err) {
-        console.error("Error adding player to Redis queue:", err);
-        return;
-      }
-      console.log(result);
-      console.log(`Player ${email} added to Redis queue for level ${level}`);
-    }
-  );
-  let playerInfo={
-    email,
-    level,
-    socketId
-  }
-  await redis_client.hSet(`player:${email}`,playerInfo,(error,result)=>{
-    if(error){
-      console.log('error in saving users in hmset')
-      return 
-    }
-    console.log(result)
-  })
+function connectToRedis() {
+    console.log("runnig redis");
+    redis_client = redis.createClient(6379, "127.0.0.1");
+    redis_client.connect();
+    redis_client.on("error", (err) => {
+        console.log("encountered error while connecting redis");
+        console.error(err);
+        process.exit(1);
+    });
+    redis_client.on("connect", () => {
+        console.log("connected to redis");
+    });
 }
+
+// this function would add user to queue and also would find opponent directly if there was no opponent would send starter user
+// info back with [starterInfo] from hashmaps else would return opponent and player in array [starter,opponent] if erro would empty list
+async function addPlayerAndFindOpponent(email, level, socketId) {
+    // used for sets
+    const key = `matchMaking:level:${level}`;
+    // used for hashmap
+    const playerKey = `player:${email}`;
+    //check if user has been in queue or not
+    const isPlayerInQueue = await redis_client.sIsMember(key, playerKey);
+    if (isPlayerInQueue) {
+        console.log("user already in queue can not connect again");
+        return;
+    }
+    // new online user info for setting in hashmap in db
+    const playerInfo = {
+        email,
+        level,
+        socketId,
+    };
+    // adding user to set
+    await redis_client.sAdd(key, email, (err, result) => {
+        if (err) {
+            console.error("error adding player to sets")
+            return [];
+        }
+    })
+    // adding user to hashmap
+    await redis_client.hSet(playerKey, playerInfo, (err, result) => {
+        if (err) {
+            console.log("Error saving palyer info in redi :" + err);
+            return [];
+        }
+    });
+    let opponentPlayerEmail=await _findOpponent(email,level)
+    if(!opponentPlayerEmail){
+        return [playerInfo]
+    }else{
+        // get opponent player info base on returned email
+        let opponentInfo=await redis_client.hGetAll(opponentPlayerEmail)
+        return [playerInfo,opponentInfo]
+    }
+}
+// this function would return opponent player if not found or error would be null
+async function _findOpponent(currentUserEmail, level){
+    const setKey = `matchMaking:level:${level}`;
+    let playersList=await redis_client.sMembers(setKey);
+    // if list was empty
+    if(playersList.length === 0){
+        return null;
+    }else{
+        if(playersList.length>1){
+            // randomly select user from list
+            const randomPlayerIndex=Math.floor(Math.random()*playersList.length);
+            return playersList[randomPlayerIndex];
+        }else{
+            if(playersList[0]!== currentUserEmail){
+                return  playersList[0]
+            }else{
+                return null;
+            }
+        }
+    }
+}
+
+
 
 async function removePlayerFromQueue(email, level) {
-  const playerKey = `player:${email}`;
-
-  await redis_client.zRem(
-    `matchmaking:level:${level}`,
-    playerKey,
-    (err, result) => {
-      if (err) {
-        console.error("Error adding player to Redis queue:", err);
-        return;
-      }
-      console.log(result);
-
-      console.log(
-        `Player ${socketid} removed from  Redis queue for level ${level}`
-      );
-    }
-  );
-  await redis_client.del(playerKey)
-
+    const playerKey = `player:${email}`;
+    const levelSetKey = `matchMaking:level:${level}`;
+    await redis_client.sRem(levelSetKey, email);
+    await redis_client.del(playerKey);
 }
-const findOpponent = (email, level) => {
-  const levelRange = [level - 2, level + 2];  // Match within 2 levels
 
-  for (let i = levelRange[0]; i <= levelRange[1]; i++) {
-    const key = `matchmaking:level:${i}`;
 
-    // Get the first player from the sorted set (other than the current player)
-    client.zrange(key, 0, 0, (err, players) => {
-      if (err) {
-        console.error('Error fetching players from Redis:', err);
-        return;
-      }
-
-      const opponentKey = players.find((player) => player !== `player:${email}`);
-
-      if (opponentKey) {
-        // Remove both players from the queue and notify them of the match
-        client.zRem(key, `player:${socket.id}`);
-        client.zRem(key, opponentKey);
-
-        const opponentId = opponentKey.split(':')[1];  // Extract socket ID
-
-        socket.emit('matchFound', { opponent: opponentId });
-        io.to(opponentId).emit('matchFound', { opponent: socket.id });
-
-        console.log(`Match found: ${socket.id} vs ${opponentId}`);
-        return;
-      }
+const setGameInfoHashMap = async (key, info) => {
+    await redis_client.hSet(key, info, (err, result) => {
+        if (err) {
+            console.log(err);
+            return -1;
+        }
     });
-  }
-
-  console.log(`No opponent found for player ${socket.id}, waiting...`);
 };
 module.exports = {
-  connectToRedis,
-  addPlayerToQueue,
-  removePlayerFromQueue,
+    connectToRedis,
+     addPlayerAndFindOpponent,
+    removePlayerFromQueue,
+
+    setGameInfoHashMap,
 };

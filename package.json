@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "build":"node index.js"
   },
   "author": "",
   "license": "ISC",
@@ -23,6 +24,7 @@
     "redis": "^4.7.0",
     "short-unique-id": "^5.2.0",
     "socket.io": "^4.8.0",
+    "uuid": "^10.0.0",
     "ws": "^8.18.0"
   }
 }
