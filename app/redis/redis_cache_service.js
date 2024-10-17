@@ -6,6 +6,14 @@ function connectToRedis() {
     console.log("runnig redis");
     redis_client = redis.createClient(6379, "127.0.0.1");
     redis_client.connect();
+    let subscriberInstance=redis_client.duplicate()
+    subscriberInstance.connect()
+    redis_client.configSet('notify-keyspace-events', 'Ex')
+    subscriberInstance.subscribe('__keyevent@0__:expired',(expiredKey) => {
+            if(expiredKey.startsWith('room:')){
+                console.log('Room time out , should disconnect game and ...')
+            }
+    })
     redis_client.on("error", (err) => {
         console.log("encountered error while connecting redis");
         console.error(err);
@@ -49,37 +57,41 @@ async function addPlayerAndFindOpponent(email, level, socketId) {
             return [];
         }
     });
-    let opponentPlayerEmail=await _findOpponent(email,level)
-    if(!opponentPlayerEmail){
+    let opponentPlayerEmail = await _findOpponent(email, level)
+    if (!opponentPlayerEmail) {
         return [playerInfo]
-    }else{
+    } else {
         // get opponent player info base on returned email
-        let opponentInfo=await redis_client.hGetAll(opponentPlayerEmail)
-        return [playerInfo,opponentInfo]
+        let opponentInfo = await redis_client.hGetAll(`player:${opponentPlayerEmail}`);
+        return [playerInfo, opponentInfo]
     }
 }
+
 // this function would return opponent player if not found or error would be null
-async function _findOpponent(currentUserEmail, level){
+async function _findOpponent(currentUserEmail, level) {
     const setKey = `matchMaking:level:${level}`;
-    let playersList=await redis_client.sMembers(setKey);
+    let playersList = await redis_client.sMembers(setKey);
+    let indexOfCurrentEmail = playersList.indexOf(currentUserEmail);
+    if (indexOfCurrentEmail !== -1) {
+        playersList.splice(indexOfCurrentEmail, 1);
+    }
     // if list was empty
-    if(playersList.length === 0){
+    if (playersList.length === 0) {
         return null;
-    }else{
-        if(playersList.length>1){
+    } else {
+        if (playersList.length > 1) {
             // randomly select user from list
-            const randomPlayerIndex=Math.floor(Math.random()*playersList.length);
+            const randomPlayerIndex = Math.floor(Math.random() * playersList.length);
             return playersList[randomPlayerIndex];
-        }else{
-            if(playersList[0]!== currentUserEmail){
-                return  playersList[0]
-            }else{
+        } else {
+            if (playersList[0] !== currentUserEmail) {
+                return playersList[0]
+            } else {
                 return null;
             }
         }
     }
 }
-
 
 
 async function removePlayerFromQueue(email, level) {
@@ -90,18 +102,22 @@ async function removePlayerFromQueue(email, level) {
 }
 
 
-const setGameInfoHashMap = async (key, info) => {
+const setHashMap = async (key, info, time) => {
     await redis_client.hSet(key, info, (err, result) => {
         if (err) {
             console.log(err);
             return -1;
         }
+
     });
+    if(time){
+        await redis_client.expire(key,time)
+    }
 };
 module.exports = {
     connectToRedis,
-     addPlayerAndFindOpponent,
+    addPlayerAndFindOpponent,
     removePlayerFromQueue,
 
-    setGameInfoHashMap,
+   setHashMap,
 };
