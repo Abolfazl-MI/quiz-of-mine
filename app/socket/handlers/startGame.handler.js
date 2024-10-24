@@ -69,5 +69,5 @@ async function _createRoomAndJoinUser(io, socket, user) {
 
 
 module.exports = {
-    startGame: gameSocketHandler,
+  gameSocketHandler,
 };
