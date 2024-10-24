@@ -26,7 +26,7 @@ async function gameSocketHandler(io, socket, user) {
 
 async function _createRoomAndJoinUser(io, socket, user) {
     // try to add user to queue first if user not exists
-    let gamePlayers = await addPlayerAndFindOpponent(user.email, user.level, socket.id)
+    let gamePlayers = await addPlayerAndFindOpponent(user.id, user.level, socket.id)
     if (gamePlayers.length === 0) {
         // when error has happened
         io.of('/online').to(user.socketId).emit('server-error', 'An Unknown error happended ')

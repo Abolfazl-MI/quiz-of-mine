@@ -26,11 +26,11 @@ function connectToRedis() {
 
 // this function would add user to queue and also would find opponent directly if there was no opponent would send starter user
 // info back with [starterInfo] from hashmaps else would return opponent and player in array [starter,opponent] if erro would empty list
-async function addPlayerAndFindOpponent(email, level, socketId) {
+async function addPlayerAndFindOpponent(id, level, socketId) {
     // used for sets
     const key = `matchMaking:level:${level}`;
     // used for hashmap
-    const playerKey = `player:${email}`;
+    const playerKey = `player:${id}`;
     //check if user has been in queue or not
     const isPlayerInQueue = await redis_client.sIsMember(key, playerKey);
     if (isPlayerInQueue) {
@@ -39,12 +39,12 @@ async function addPlayerAndFindOpponent(email, level, socketId) {
     }
     // new online user info for setting in hashmap in db
     const playerInfo = {
-        email,
+        id,
         level,
         socketId,
     };
     // adding user to set
-    await redis_client.sAdd(key, email, (err, result) => {
+    await redis_client.sAdd(key, id, (err, result) => {
         if (err) {
             console.error("error adding player to sets")
             return [];
@@ -57,7 +57,7 @@ async function addPlayerAndFindOpponent(email, level, socketId) {
             return [];
         }
     });
-    let opponentPlayerEmail = await _findOpponent(email, level)
+    let opponentPlayerEmail = await _findOpponent(id, level)
     if (!opponentPlayerEmail) {
         return [playerInfo]
     } else {
@@ -68,12 +68,12 @@ async function addPlayerAndFindOpponent(email, level, socketId) {
 }
 
 // this function would return opponent player if not found or error would be null
-async function _findOpponent(currentUserEmail, level) {
+async function _findOpponent(currentUserId, level) {
     const setKey = `matchMaking:level:${level}`;
     let playersList = await redis_client.sMembers(setKey);
-    let indexOfCurrentEmail = playersList.indexOf(currentUserEmail);
-    if (indexOfCurrentEmail !== -1) {
-        playersList.splice(indexOfCurrentEmail, 1);
+    let indexOfCurrentUser = playersList.indexOf(currentUserId);
+    if (indexOfCurrentUser !== -1) {
+        playersList.splice(indexOfCurrentUser, 1);
     }
     // if list was empty
     if (playersList.length === 0) {
@@ -84,7 +84,7 @@ async function _findOpponent(currentUserEmail, level) {
             const randomPlayerIndex = Math.floor(Math.random() * playersList.length);
             return playersList[randomPlayerIndex];
         } else {
-            if (playersList[0] !== currentUserEmail) {
+            if (playersList[0] !== currentUserId) {
                 return playersList[0]
             } else {
                 return null;
