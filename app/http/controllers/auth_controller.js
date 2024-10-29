@@ -65,7 +65,7 @@ class AuthController {
       // returing response
       return res.status(200).json({
         statusCode:res.statusCode,
-        message:'successfully loged in',
+        message:'successfully logged in',
         token
       })
     } catch (error) {
