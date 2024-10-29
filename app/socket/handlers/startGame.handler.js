@@ -1,9 +1,14 @@
 const {
-
     addPlayerToQueue, addPlayerAndFindOpponent, setHashMap,
 } = require("../../redis/redis_cache_service");
 const {v4: uuidv4,} = require("uuid");
+const cluster = require('cluster')
 const {RoomModel} = require("../../http/models/room_model");
+const SocketEventNames = require("../event-names");
+const {Worker, isMainThread, parentPort} = require('worker_threads')
+const {RoomController} = require("../../http/controllers/room.controller");
+const {GameRoomHandler, quizGameEventNames} = require("../../utills/quizGame");
+const {SlaveHandler} = require("./slave_handler");
 
 
 async function gameSocketHandler(io, socket, user) {
@@ -14,60 +19,80 @@ async function gameSocketHandler(io, socket, user) {
         // room limitation on backend on 5
         if (roomsCount < 4) {
             // let create game
-            await _createRoomAndJoinUser(io, socket, user)
+            // await _createRoomAndJoinUser(io, socket, user)
+            let gamePlayers = await addPlayerAndFindOpponent(user.id, user.level, socket.id)
+            if (gamePlayers.length === 0) {
+                // an error happened while searching for opponent
+                io.of('/online').to(user.socketId).emit(SocketEventNames.SERVER_ERROR, {
+                    'data': 'An Unknown error happened ',
+                })
+            } else if (gamePlayers.length === 1) {
+                // no opponent found for user
+                io.of('/online').to(gamePlayers[0].socketId).emit(SocketEventNames.IN_APP_MESSAGE, {
+                    "data": 'no opponent found yet,please wait we are trying to find one'
+                })
+            } else {
+                // we have opponents
+                // notify users that we found user
+                _sendMessageToUsers(io, gamePlayers, SocketEventNames.IN_APP_MESSAGE, {
+                    'data': 'An opponent found match would take place soon'
+                })
+                let roomId = _joinUserToRooms(io, gamePlayers)
+                await _storeRoomInfo(roomId, gamePlayers)
+                let gameSalveInstance=new SlaveHandler(roomId)
+                gameSalveInstance.on("message",message=>{
+                    if(message.e===quizGameEventNames.GAME_TIME_OUT){
+                        io.of('/online').to(roomId).emit(SocketEventNames.SERVER_ERROR, {
+                            'data':"Game time out"
+                        })
+                    }
+                })
+            }
         } else {
             // send message rooms are crowded try later
-            io.of('/online').to(user.socketId).emit('server-fill', 'Matches are in play try again later')
+            io.of('/online').to(user.socketId).emit(SocketEventNames.SERVER_ERROR, {
+                "data": 'Matches are in play try again later'
+            })
         }
     } catch (e) {
         console.error(e);
     }
 }
 
-async function _createRoomAndJoinUser(io, socket, user) {
-    // try to add user to queue first if user not exists
-    let gamePlayers = await addPlayerAndFindOpponent(user.id, user.level, socket.id)
-    if (gamePlayers.length === 0) {
-        // when error has happened
-        io.of('/online').to(user.socketId).emit('server-error', 'An Unknown error happended ')
-
-    } else if (gamePlayers.length === 1) {
-        // send message to wait to find player
-        io.of('/online').to(gamePlayers[0].socketId).emit('server-message', 'no opponent found yet,please wait we are trying to find one')
-    } else {
-        // send message to ech client the opponent found match would start
-        for (let user of gamePlayers) {
-            console.log('night mare finished!!! ')
-            console.log('opponent found')
-            io.of('/online').to(user.socketId).emit('server-message', 'An opponent found match would take place soon')
-        }
-        // create room and join users in
-        let roomId = uuidv4();
-        // players socket
-        let player1Socket = io.of('/online').sockets.get(gamePlayers[0].socketId)
-        let player2Socket = io.of('/online').sockets.get(gamePlayers[1].socketId)
-        player1Socket.join(roomId)
-        player2Socket.join(roomId)
-        console.log('setting data in redis')
-        // set time out message to redis to get the controll of time of each room creation
-        await setHashMap(`room:${roomId}`, {roomId, "createdAt": new Date().toISOString()}, 30)
-        // set new table in mongodb for room creation
-        let roomInfo={
-            roomId,
-            player_1:{
-                "email":gamePlayers[0].email,
-                "socketId":gamePlayers[0].socketId
-            },
-            player_2:{
-                "email":gamePlayers[1].email,
-                "socketId":gamePlayers[1].socketId
-            }
-        }
-        await  RoomModel.create(roomInfo)
+function _sendMessageToUsers(io, gamePlayers, messageType, message) {
+    for (let user of gamePlayers) {
+        // sends each user message that opponent found
+        io.of('/online').to(user.socketId).emit(messageType, message)
     }
+}
+
+function _joinUserToRooms(io, gamePlayers) {
+    let roomId = uuidv4();
+    let player1Socket = io.of('/online').sockets.get(gamePlayers[0].socketId)
+    let player2Socket = io.of('/online').sockets.get(gamePlayers[1].socketId)
+    player1Socket.join(roomId)
+    player2Socket.join(roomId)
+    return roomId
+}
+
+async function _storeRoomInfo(roomId, gamePlayers) {
+    let player_1 = {
+        "socketId": gamePlayers[0].socketId,
+        "id": gamePlayers[0].id
+    }
+    let player_2 = {
+        "socketId": gamePlayers[1].socketId,
+        "id": gamePlayers[1].id
+    }
+    let roomInfo = {
+        roomId,
+        player_1,
+        player_2
+    }
+    await RoomController.createRoom(roomInfo)
 }
 
 
 module.exports = {
-  gameSocketHandler,
+    gameSocketHandler,
 };
