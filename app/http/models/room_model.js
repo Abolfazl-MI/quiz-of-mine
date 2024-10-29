@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const {mongo} = require("mongoose");
 const playerSchema = new mongoose.Schema({
-    email: {
+    id: {
         type: String,
         required: true
     },
@@ -9,20 +9,26 @@ const playerSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    socketId: {
-        type: String,
-        required: true
-    }
+
 });
 const room_schema = new mongoose.Schema({
-    roomId: String,
+    roomId: {
+        type:String,
+        required:true
+    },
     status: {
         type: String,
         enum: ['ON-GOING', "TIME_OUT", "USER-RESIGN", "FINISHED"],
         default: "ON-GOING"
     },
-    player_1: playerSchema,
-    player_2: playerSchema
+    player_1: {
+        type:playerSchema,
+        required:true
+    },
+    player_2: {
+        type:playerSchema,
+        required:true
+    }
 })
 const RoomModel=mongoose.model("room", room_schema)
 
