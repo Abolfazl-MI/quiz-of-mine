@@ -1,8 +1,9 @@
 const mongoose = require("mongoose");
-const {mongo} = require("mongoose");
+
 const playerSchema = new mongoose.Schema({
     id: {
-        type: String,
+        type: mongoose.Schema.ObjectId,
+        ref:"user",
         required: true
     },
     score: {
@@ -11,11 +12,7 @@ const playerSchema = new mongoose.Schema({
     },
 
 });
-const room_schema = new mongoose.Schema({
-    roomId: {
-        type:String,
-        required:true
-    },
+const game_schema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['ON-GOING', "TIME_OUT", "USER-RESIGN", "FINISHED"],
@@ -29,9 +26,9 @@ const room_schema = new mongoose.Schema({
         type:playerSchema,
         required:true
     }
-})
-const RoomModel=mongoose.model("room", room_schema)
+},{timestamps:true})
+const GameModel=mongoose.model("game", game_schema)
 
 module.exports={
-    RoomModel
+   GameModel
 }
