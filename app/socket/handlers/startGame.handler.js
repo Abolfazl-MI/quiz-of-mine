@@ -3,12 +3,13 @@ const {
 } = require("../../redis/redis_cache_service");
 const {v4: uuidv4,} = require("uuid");
 const cluster = require('cluster')
-const {RoomModel} = require("../../http/models/room_model");
+
 const SocketEventNames = require("../event-names");
 const {Worker, isMainThread, parentPort} = require('worker_threads')
-const {RoomController} = require("../../http/controllers/room.controller");
+const {RoomController, GameModelController} = require("../../http/controllers/gameModelController");
 const {GameRoomHandler, quizGameEventNames} = require("../../utills/quizGame");
 const {SlaveHandler} = require("./slave_handler");
+const {generateUserToken, generateGameJwtToken} = require("../../utills/functions");
 
 
 async function gameSocketHandler(io, socket, user) {
@@ -37,16 +38,29 @@ async function gameSocketHandler(io, socket, user) {
                 _sendMessageToUsers(io, gamePlayers, SocketEventNames.IN_APP_MESSAGE, {
                     'data': 'An opponent found match would take place soon'
                 })
-                let roomId = _joinUserToRooms(io, gamePlayers)
-                await _storeRoomInfo(roomId, gamePlayers)
-                let gameSalveInstance=new SlaveHandler(roomId)
-                gameSalveInstance.on("message",message=>{
-                    if(message.e===quizGameEventNames.GAME_TIME_OUT){
-                        io.of('/online').to(roomId).emit(SocketEventNames.SERVER_ERROR, {
-                            'data':"Game time out"
-                        })
+                let gameInfo=await GameModelController.createGame({
+                    "player_1":{
+                        "id":gamePlayers[0].id,
+                    },
+                    "player_2":{
+
+                        "id":gamePlayers[1].id
                     }
                 })
+                let gameId=gameInfo._id
+                console.log('created game id is '+gameId)
+
+                let gameJwtToken=await generateGameJwtToken(gameId)
+
+                _sendMessageToUsers(io,gamePlayers,SocketEventNames.SERVER_MASSAGE,{
+                    "data":{
+                        "token":gameJwtToken
+                    }
+                })
+                // the rest for quiz or any games would be rest in slave Handler
+                let gameSalveInstance=new SlaveHandler(io,gamePlayers,gameId)
+
+
             }
         } else {
             // send message rooms are crowded try later
@@ -66,31 +80,7 @@ function _sendMessageToUsers(io, gamePlayers, messageType, message) {
     }
 }
 
-function _joinUserToRooms(io, gamePlayers) {
-    let roomId = uuidv4();
-    let player1Socket = io.of('/online').sockets.get(gamePlayers[0].socketId)
-    let player2Socket = io.of('/online').sockets.get(gamePlayers[1].socketId)
-    player1Socket.join(roomId)
-    player2Socket.join(roomId)
-    return roomId
-}
 
-async function _storeRoomInfo(roomId, gamePlayers) {
-    let player_1 = {
-        "socketId": gamePlayers[0].socketId,
-        "id": gamePlayers[0].id
-    }
-    let player_2 = {
-        "socketId": gamePlayers[1].socketId,
-        "id": gamePlayers[1].id
-    }
-    let roomInfo = {
-        roomId,
-        player_1,
-        player_2
-    }
-    await RoomController.createRoom(roomInfo)
-}
 
 
 module.exports = {
