@@ -1,61 +1,71 @@
-const EventEmitter=require('node:events')
-const { workerData, parentPort,Worker,isMainThread } = require("worker_threads");
-const path=require('path')
+const {workerData, parentPort, Worker, isMainThread,threadId} = require("worker_threads");
+const path = require('path')
 const {v4: uuidv4,} = require("uuid");
-class SlaveHandler extends  EventEmitter{
-    #gameId
-    #roomId
+const {GameModelController} = require("../../http/controllers/gameModelController");
+const {quizGameEventNames} = require("../../utills/quizGame");
+const SocketEventNames = require("../event-names");
+const {GameModel} = require("../../http/models/game_model");
+
+/**we removed eventEmitter because we want to that slaveHandler be out main protocol in handling and communication with slave and master
+ * we would seprate space for users would play in name of /quizGame the space named /online is kind of game loby where users online and not ready to play
+ * for each game would have token with game id that represented that game for it uniqness
+ * */
+
+class SlaveHandler {
+    // array of players which contains starter and opponent
+    #gamePlayers
     #worker
-    constructor(roomId){
-        super()
-        this.#roomId = roomId;
-        this.createSlave().then((value)=>{
-            this.listenToMessages()
-        }).catch(err=>{
-            throw err
-        })
-        this.#gameId=uuidv4();
+    #io
+    #gameId
+    constructor(io, gamePlayers,gameId) {
+        this.#gamePlayers = gamePlayers;
+        this.#gameId=gameId
+        this.#io = io
+        this.createSlave=this.createSlave.bind(this)
+        this.createSlave()
+        console.log('game id recived is '+this.#gameId)
     }
-    createSlave(){
-        return new Promise((resolve,reject)=>{
-            try{
-                if(isMainThread){
-                    let workerFilePath=path.join(__dirname,'..','..','/utills/room.worker.handler.js')
-                    console.log('worker path is '+workerFilePath)
-                    this.#worker=new Worker(workerFilePath,
-                        {
-                            workerData: {
-                                "roomId":this.#roomId
-                            }
+
+    createSlave() {
+
+        try {
+            if (isMainThread) {
+                console.info('main thread id is '+threadId)
+                // when ever this class constructor trigerd means that new game should start
+                // then that would mean to create quizGame schema in mongodb and generate the jwt token
+                let workerFilePath = path.join(__dirname, '..', '..', '/utills/room.worker.handler.js')
+                this.#worker = new Worker(workerFilePath, {
+                    workerData: {
+                        "gameId":this.#gameId.toString()
+                    }
+                })
+            } else {
+                console.log('worker thread id is '+ threadId)
+                console.log('not in worker thread ')
+                this.#worker.on('message', (workerMessage) => {
+                    let {E, D} = workerMessage
+                    if (E === quizGameEventNames.GAME_JWT_CREATED) {
+                        gamePlayers.forEach((player) => {
+                            let {token} = D
+                            io.of('/online').to(player.socketId).emit(SocketEventNames.SERVER_MASSAGE, {
+                                "data": {
+                                    token
+                                }
+                            })
                         })
-                    return resolve(this.#worker);
+                    }
 
-                }else {
-                    reject(new Error("Cannot create worker on a non-main thread."));
-                }
-            }catch(e){
-                return reject(e);
+                })
             }
-        })
-    }
-   listenToMessages(){
-        this.#worker.on("message",(message)=>{
-            this.emit("message",message)
-        })
+        } catch (e) {
+
+        }
+
     }
 
-   sendMessageToMaster(message){
-        return new Promise((resolve,reject)=>{
-            try{
-               parentPort.postMessage(message)
-                return resolve();
-            }catch(e){
-                return  reject(e)
-            }
-        })
-   }
 }
 
-module.exports={
+
+module.exports = {
     SlaveHandler
 }
