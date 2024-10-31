@@ -5,4 +5,4 @@ const {QuizGame} = require("./quizGame");
 
 console.log(workerData);
 let quizGame=new QuizGame()
-quizGame.startGame(workerData.roomId)
+quizGame.startGame(workerData.gameId)
