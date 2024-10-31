@@ -101,6 +101,11 @@ async function removePlayerFromQueue(email, level) {
     await redis_client.del(playerKey);
 }
 
+async function findUserHashMapById(id){
+    const key=`player:${id}`
+return await  redis_client.hGetAll(key)
+
+}
 
 const setHashMap = async (key, info, time) => {
     await redis_client.hSet(key, info, (err, result) => {
@@ -118,6 +123,6 @@ module.exports = {
     connectToRedis,
     addPlayerAndFindOpponent,
     removePlayerFromQueue,
-
+    findUserHashMapById,
    setHashMap,
 };
