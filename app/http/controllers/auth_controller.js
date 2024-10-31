@@ -72,6 +72,26 @@ class AuthController {
         return next(error)
     }
   }
+  async getNewToken(req,res,next){
+    try{
+      let {id}=req.params
+      console.log(id)
+      let user=await UserModel.findById(id)
+      if(user){
+        let token=generateUserToken(user._id)
+        return res.status(200).json({
+          data:[
+              token,
+              user
+          ]
+        })
+      }else{
+        next({status:404,message:'user not found'})
+      }
+    }catch(e){
+      next(e)
+    }
+  }
 }
 
 

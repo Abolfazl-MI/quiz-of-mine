@@ -13,7 +13,9 @@ router
 router
     .route('/login')
     .post(authenticationValidator(),validateRequest,AuthController.login)
-    
+
+router.route('/getToken/:id').get(AuthController.getNewToken)
+
 module.exports = {
   auth_router: router,
 };
