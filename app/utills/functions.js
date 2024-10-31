@@ -11,6 +11,19 @@ function generateUserToken(id) {
   );
   return token;
 }
+
+async function generateGameJwtToken(id){
+    let gameToken=await jwt.sign(
+        {
+            id
+        },
+        process.env.JWT_SECRET,
+        {
+            expiresIn: "1y"
+        }
+    )
+    return gameToken
+}
 function validatorMapper(errors = []) {
     let message = {};
     errors.forEach((error) => {
@@ -21,5 +34,6 @@ function validatorMapper(errors = []) {
 
 module.exports = {
   generateUserToken,
-  validatorMapper
+  validatorMapper,
+    generateGameJwtToken
 };
