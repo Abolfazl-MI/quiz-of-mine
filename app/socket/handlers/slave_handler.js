@@ -1,4 +1,4 @@
-const {workerData, parentPort, Worker, isMainThread,threadId} = require("worker_threads");
+const {workerData, Worker, isMainThread, threadId,} = require("worker_threads");
 const path = require('path')
 const {v4: uuidv4,} = require("uuid");
 const {GameModelController} = require("../../http/controllers/gameModelController");
@@ -17,52 +17,75 @@ class SlaveHandler {
     #worker
     #io
     #gameId
-    constructor(io, gamePlayers,gameId) {
+
+    constructor(io, gamePlayers, gameId,parentPort) {
+
         this.#gamePlayers = gamePlayers;
-        this.#gameId=gameId
+        this.#gameId = gameId
         this.#io = io
-        this.createSlave=this.createSlave.bind(this)
+        this.createSlave = this.createSlave.bind(this)
         this.createSlave()
-        console.log('game id recived is '+this.#gameId)
+
     }
 
     createSlave() {
 
         try {
             if (isMainThread) {
-                console.info('main thread id is '+threadId)
+
                 // when ever this class constructor trigerd means that new game should start
                 // then that would mean to create quizGame schema in mongodb and generate the jwt token
                 let workerFilePath = path.join(__dirname, '..', '..', '/utills/room.worker.handler.js')
+                let quizTimeLimit=process.env.QUIZ_ROOM_TIME_LIMIT || 180
+                let questionPerRoom=process.env.QUESTION_PER_ROOM ||9
                 this.#worker = new Worker(workerFilePath, {
                     workerData: {
-                        "gameId":this.#gameId.toString()
-                    }
+                        "gameId": this.#gameId.toString(),
+                        quizTimeLimit,
+                        questionPerRoom
+                    },
+
+                })
+                this.#worker.on('message', (workerMessage) => {
+                    // console.log('we got message from worker  sir!!!')
+                    // console.log(workerMessage)
+                    this._onMessageReceived(workerMessage)
+
                 })
             } else {
-                console.log('worker thread id is '+ threadId)
-                console.log('not in worker thread ')
-                this.#worker.on('message', (workerMessage) => {
-                    let {E, D} = workerMessage
-                    if (E === quizGameEventNames.GAME_JWT_CREATED) {
-                        gamePlayers.forEach((player) => {
-                            let {token} = D
-                            io.of('/online').to(player.socketId).emit(SocketEventNames.SERVER_MASSAGE, {
-                                "data": {
-                                    token
-                                }
-                            })
-                        })
-                    }
 
-                })
             }
         } catch (e) {
-
+            console.log(e)
+            console.log('worker creation error ')
         }
 
     }
 
+    _onMessageReceived(message) {
+        let {E, D} = message
+        // console.log('received message E =>'+E)
+        // console.log('received message D =>'+D)
+        if (E === quizGameEventNames.GAME_JWT_CREATED) {
+            let {token} = D
+            this._sendUsersMessage(SocketEventNames.QUIZ_GAME_MESSAGE, {'data': {token}})
+        }
+        if (E === quizGameEventNames.GAME_TIME_OUT || E===quizGameEventNames.QUESTION_TIME_OUT) {
+            // TODO NEED TO UPDATE MONGODB STATE OF GAME
+            let {message}=D
+            this._onMessageReceived(SocketEventNames.QUIZ_GAME_MESSAGE,{"data":message})
+        }
+        if(E===quizGameEventNames.NEXT_QUESTION){
+            let {data}=D
+            this._sendUsersMessage(SocketEventNames.QUIZ_GAME_MESSAGE,data)
+        }
+    }
+
+    _sendUsersMessage(eventType, data) {
+        this.#gamePlayers.forEach((player) => {
+            this.#io.of('/online').to(player.socketId).emit(eventType, data)
+        })
+    }
 }
 
 
