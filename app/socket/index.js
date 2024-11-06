@@ -1,8 +1,13 @@
-const {addPlayerToQueue, removePlayerFromQueue} = require("../redis/redis_cache_service");
+const {addPlayerToQueue, removePlayerFromQueue, setPlayerInfo, getRedisHashByKey, setHashOnRedis, isSetMember,
+    createSetInRedis, updateSet, getSetAllMembersByKey
+} = require("../redis/redis_cache_service");
+const {Worker, isMainThread, parentPort} = require('worker_threads')
 const {startGame, gameSocketHandler} = require("./handlers/startGame.handler");
 
 
 const {socketAuthMiddle, gameAuthMiddleWare} = require("./middleware/socket.auth.middleware");
+const {SlaveHandler} = require("./handlers/slave_handler");
+const SocketEventNames = require("./event-names");
 
 const ioMainHandler = (io) => {
     try {
@@ -19,9 +24,26 @@ const ioMainHandler = (io) => {
             })
         })
         let quizGameSpace = io.of('/quizGame')
+        quizGameSpace.use(socketAuthMiddle)
         quizGameSpace.use(gameAuthMiddleWare)
         quizGameSpace.on('connection', (socket) => {
-            console.log('a player joined to private rooms of quiz game ')
+            socket.on('join-match',async (data)=>{
+                let gameId=socket.gameInfo._id.toString()
+                let setKey=`match:${gameId}`
+                let gameMembers=await getSetAllMembersByKey(setKey)
+                if(gameMembers.length<2){
+                    await updateSet(setKey,socket.id)
+                }
+                if(gameMembers.length ===2){
+                    // get users info from hashmap
+                    let players=[]
+                    for(let memeber of  gameMembers){
+                       players.push(memeber)
+                    }
+                    let gameSlaveInstance= new SlaveHandler(io,players,socket.gameInfo._id.toString(),parentPort)
+
+                }
+            })
         })
 
     } catch (e) {
