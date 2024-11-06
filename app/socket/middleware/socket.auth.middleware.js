@@ -36,8 +36,8 @@ async function socketAuthMiddle(socket, next) {
 }
 
 async function gameAuthMiddleWare(socket, next) {
-    let headers = socket.handshake.headers.authorization ||
-        socket.handshake.headers.Authorization;
+ let headers=socket.handshake.headers.gametoken||socket.handshake.headers.GameToken;
+
     if (!headers || !headers.startsWith("Bearer")) {
         return next({status: 400, message: "unauthorized request"});
     }
@@ -52,14 +52,17 @@ async function gameAuthMiddleWare(socket, next) {
                 return next({status: 400, message: "unauthorized request"});
             }
             let gameInfo= await GameModel.findById(decoded.id)
-            let player1Id=gameInfo.player_1.id.toString()
-            let player2Id=gameInfo.player_2.id.toString()
-            let player1HashMap=await findUserHashMapById(player1Id)
-            let player2HashMap=await findUserHashMapById(player2Id)
-            gameInfo.player_1['socketId']=player1HashMap.socketId
-            gameInfo.player_2['socketId']=player2HashMap.socketId
-            socket.gameInfo=gameInfo
-            return next();
+            // read user info from pervious middleware to check if requester in game or not
+            let userId=socket.user._id.toString()
+            let player_1ID=gameInfo.player_1.id.toString()
+            let player_2ID=gameInfo.player_2.id.toString()
+            if(userId===player_1ID||userId===player_2ID){
+                socket.gameInfo=gameInfo
+                return next();
+            }else{
+                return next({status: 400, message: "unauthorized request"});
+            }
+
         }
     )
 }
