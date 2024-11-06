@@ -38,29 +38,26 @@ async function gameSocketHandler(io, socket, user) {
                 _sendMessageToUsers(io, gamePlayers, SocketEventNames.IN_APP_MESSAGE, {
                     'data': 'An opponent found match would take place soon'
                 })
-                let gameInfo=await GameModelController.createGame({
-                    "player_1":{
-                        "id":gamePlayers[0].id,
+                let gameInfo = await GameModelController.createGame({
+                    "player_1": {
+                        "id": gamePlayers[0].id,
                     },
-                    "player_2":{
+                    "player_2": {
 
-                        "id":gamePlayers[1].id
+                        "id": gamePlayers[1].id
                     }
                 })
-                let gameId=gameInfo._id
-                console.log('created game id is '+gameId)
+                let gameId = gameInfo._id
+                console.log('created game id is ' + gameId)
 
-                let gameJwtToken=await generateGameJwtToken(gameId)
+                let gameJwtToken = await generateGameJwtToken(gameId)
 
-                _sendMessageToUsers(io,gamePlayers,SocketEventNames.SERVER_MASSAGE,{
-                    "data":{
-                        "token":gameJwtToken
+                _sendMessageToUsers(io, gamePlayers, SocketEventNames.SERVER_MASSAGE, {
+                    "data": {
+                        "token": gameJwtToken
                     }
                 })
-                // the rest for quiz or any games would be rest in slave Handler
-                let gameSalveInstance=new SlaveHandler(io,gamePlayers,gameId)
-
-
+                // the slave creation and game start has moved to sapce called /quizGame
             }
         } else {
             // send message rooms are crowded try later
@@ -79,8 +76,6 @@ function _sendMessageToUsers(io, gamePlayers, messageType, message) {
         io.of('/online').to(user.socketId).emit(messageType, message)
     }
 }
-
-
 
 
 module.exports = {
