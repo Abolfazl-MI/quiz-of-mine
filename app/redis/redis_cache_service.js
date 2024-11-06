@@ -93,7 +93,9 @@ async function _findOpponent(currentUserId, level) {
     }
 }
 
-
+async function updateSet(key,value){
+    return await redis_client.SADD(key,value);
+}
 async function removePlayerFromQueue(email, level) {
     const playerKey = `player:${email}`;
     const levelSetKey = `matchMaking:level:${level}`;
@@ -106,7 +108,10 @@ async function findUserHashMapById(id){
 return await  redis_client.hGetAll(key)
 
 }
-
+async function setPlayerInfo(playerInfo){
+    let key=`player:${playerInfo.id}`
+    return await redis_client.hSet(key, playerInfo);
+}
 const setHashMap = async (key, info, time) => {
     await redis_client.hSet(key, info, (err, result) => {
         if (err) {
@@ -119,10 +124,32 @@ const setHashMap = async (key, info, time) => {
         await redis_client.expire(key,time)
     }
 };
+async function setHashOnRedis(key,value){
+    return await redis_client.hSet(key,value)
+}
+async function getRedisHashByKey(key){
+    return await redis_client.hGet(key)
+}
+async  function createSetInRedis(key,value){
+    return await redis_client.sAdd(key, value);
+}
+async function isSetMember(key){
+    return await redis_client.sIsMember(key)
+}
+async function getSetAllMembersByKey(key){
+    return await redis_client.sMembers(key)
+}
 module.exports = {
     connectToRedis,
     addPlayerAndFindOpponent,
     removePlayerFromQueue,
     findUserHashMapById,
    setHashMap,
+    setPlayerInfo,
+    setHashOnRedis,
+    getRedisHashByKey,
+    isSetMember,
+    createSetInRedis,
+    getSetAllMembersByKey,
+    updateSet
 };
