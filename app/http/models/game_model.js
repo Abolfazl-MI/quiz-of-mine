@@ -15,8 +15,8 @@ const playerSchema = new mongoose.Schema({
 const game_schema = new mongoose.Schema({
     status: {
         type: String,
-        enum: ['ON-GOING', "TIME_OUT", "USER-RESIGN", "FINISHED"],
-        default: "ON-GOING"
+        enum: ['ON-GOING', "TIME_OUT", "USER-RESIGN", "FINISHED","NOT-STARTED"],
+        default: "NOT-STARTED"
     },
     player_1: {
         type:playerSchema,
