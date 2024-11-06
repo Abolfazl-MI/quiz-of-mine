@@ -18,6 +18,7 @@ class SlaveHandler {
     #io
     #gameId
 
+
     constructor(io, gamePlayers, gameId,parentPort) {
 
         this.#gamePlayers = gamePlayers;
@@ -32,7 +33,7 @@ class SlaveHandler {
 
         try {
             if (isMainThread) {
-
+                console.log(`creating slave for this data: players =>${this.#gameId}  game id=>${this.#gameId}`)
                 // when ever this class constructor trigerd means that new game should start
                 // then that would mean to create quizGame schema in mongodb and generate the jwt token
                 let workerFilePath = path.join(__dirname, '..', '..', '/utills/room.worker.handler.js')
@@ -47,8 +48,8 @@ class SlaveHandler {
 
                 })
                 this.#worker.on('message', (workerMessage) => {
-                    // console.log('we got message from worker  sir!!!')
-                    // console.log(workerMessage)
+                    console.log('we got message from worker  sir!!!')
+                    console.log(workerMessage)
                     this._onMessageReceived(workerMessage)
 
                 })
@@ -83,7 +84,8 @@ class SlaveHandler {
 
     _sendUsersMessage(eventType, data) {
         this.#gamePlayers.forEach((player) => {
-            this.#io.of('/online').to(player.socketId).emit(eventType, data)
+            //the list would be socketid list nothing else
+            this.#io.of('/quizGame').to(player).emit(eventType, data)
         })
     }
 }
