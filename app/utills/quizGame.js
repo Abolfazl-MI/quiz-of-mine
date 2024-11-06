@@ -4,6 +4,7 @@ const {parentPort, workerData, threadId} = require('worker_threads');
 const {GameModelController} = require("../http/controllers/gameModelController");
 const {generateUserToken} = require("./functions");
 const {v4: uuidv4,} = require("uuid");
+const he=require('he')
 
 const {response} = require("express");
 
@@ -46,7 +47,7 @@ class QuizGame {
                 questions.forEach((question) => {
                     let match_question = {};
                     match_question['question_id']=uuidv4()
-                    match_question['question'] = question.question;
+                    match_question['question'] = he.decode(question.question);
                     match_question['correct_answer'] = question.correct_answer
                     match_question['all_answers'] = [...question.incorrect_answers, question.correct_answer];
                     this.#match_question.push(match_question);
@@ -85,7 +86,7 @@ class QuizGame {
     }
 
     _tickGameQuestion() {
-
+        console.log('initiating question timer')
         let questionTimeLimit = this.#quizTimeLimit / this.#questionPerRoom
         if (!this.#_selectedQuestion&&this.#match_question.length>0) {
             // if question was empty fires to select
@@ -145,6 +146,7 @@ class QuizGame {
     }
 
     _tickGameTimer() {
+        console.log('creating game timer interval')
         // game time would be calculated by dividing the total given time divided by number of questions in seconds
         if (this.#_gameState === _gameState.TIME_OUI) {
             clearInterval(this.#_gameTimerIntervalId)
@@ -154,6 +156,7 @@ class QuizGame {
             if (this.#_gameTimeSpent < this.#quizTimeLimit) {
                 this.#_gameTimeSpent += 1;
             } else {
+                console.log(`game time out`)
                 this.#_gameState = _gameState.TIME_OUI
                 clearInterval(this.#_gameTimerIntervalId)
                 this.#_gameTimerIntervalId = null
@@ -176,6 +179,7 @@ class QuizGame {
         this.#quizTimeLimit = quizTimeLimit
         console.info(`game created worker thread id is ${threadId}`)
         await this._fetchQuestions()
+        console.log(this.#match_question)
         this._tickGameTimer()
         this._tickGameQuestion()
     }
