@@ -12,10 +12,11 @@ function generateUserToken(id) {
   return token;
 }
 
-async function generateGameJwtToken(id){
+async function generateGameJwtToken(id,){
     let gameToken=await jwt.sign(
         {
-            id
+            id,
+
         },
         process.env.JWT_SECRET,
         {
